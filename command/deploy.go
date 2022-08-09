@@ -23,6 +23,7 @@ func init() {
 	pullCmd.Flags().BoolVarP(&database, "database", "d", false, "Dump only database from server")
 	pullCmd.Flags().BoolVarP(&files, "files", "f", false, "Download only files from server")
 	pullCmd.Flags().StringSliceVarP(&override, "override", "o", nil, "Override downloaded files (comma separated values)")
+	pullCmd.Flags().BoolVarP(&configs, "configs", "c", false, "Get config files (only bitrix)")
 }
 
 var pullCmd = &cobra.Command{
@@ -40,13 +41,14 @@ Laravel: only the database is downloaded`,
 		return deploy()
 	},
 	Example:   "dl deploy\ndl deploy -d\ndl deploy -f -o bitrix,upload",
-	ValidArgs: []string{"--database", "--files", "--override"},
+	ValidArgs: []string{"--database", "--files", "--override", "--configs"},
 }
 
 var (
 	database      bool
 	files         bool
 	override      []string
+	configs       bool
 	pullWaitGroup sync.WaitGroup
 	sshClient     *project.SshClient
 )
@@ -120,7 +122,7 @@ func deployService(ctx context.Context) error {
 		os.Exit(1)
 	}
 
-	if !database && !files {
+	if !database && !files && !configs {
 		database = true
 		files = true
 	}
@@ -140,6 +142,11 @@ func deployService(ctx context.Context) error {
 		go startDump(ctx)
 	}
 
+	if configs == true {
+		pullWaitGroup.Add(1)
+		go startConfigs(ctx)
+	}
+
 	pullWaitGroup.Wait()
 
 	return err
@@ -153,6 +160,11 @@ func startFiles(ctx context.Context) {
 func startDump(ctx context.Context) {
 	defer pullWaitGroup.Done()
 	sshClient.DumpDb(ctx)
+}
+
+func startConfigs(ctx context.Context) {
+	defer pullWaitGroup.Done()
+	sshClient.CopyConfigs(ctx)
 }
 
 func detectFw() (string, error) {
