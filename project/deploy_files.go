@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/docker/compose/v2/pkg/progress"
+	"github.com/pterm/pterm"
 	"github.com/varrcan/dl/helper"
 )
 
@@ -61,6 +62,51 @@ func (c SshClient) CopyFiles(ctx context.Context, override []string) {
 	reflect.ValueOf(&a).MethodByName(strings.Title(c.Server.FwType + "Access")).Call([]reflect.Value{})
 
 	w.Event(progress.Event{ID: "Files", Status: progress.Done})
+}
+
+func (c SshClient) CopyConfigs(ctx context.Context) {
+	w := progress.ContextWriter(ctx)
+
+	w.Event(progress.Event{
+		ID:       "Copy Config Files",
+		ParentID: "Files",
+		Status:   progress.Working,
+	})
+
+	var err error
+	switch c.Server.FwType {
+	case "bitrix":
+		pterm.FgBlue.Println("Download bitrix configs files")
+
+		serverPath := filepath.Join(c.Server.Catalog, "/bitrix/.settings.php")
+		localPath := filepath.Join(Env.GetString("PWD"), "/bitrix/.settings.php")
+		err := c.download(ctx, serverPath, localPath)
+
+		if err != nil {
+			pterm.FgRed.Println("Download error: ", err)
+		}
+
+		serverPath = filepath.Join(c.Server.Catalog, "/bitrix/php_interface/dbconn.php")
+		localPath = filepath.Join(Env.GetString("PWD"), "/bitrix/php_interface/dbconn.php")
+		err = c.download(ctx, serverPath, localPath)
+
+		if err != nil {
+			pterm.FgRed.Println("Download error: ", err)
+		}
+
+	case "wordpress":
+
+	default:
+		return
+	}
+
+	var a callMethod
+	reflect.ValueOf(&a).MethodByName(strings.Title(c.Server.FwType + "Access")).Call([]reflect.Value{})
+
+	if err != nil {
+		pterm.FgRed.Printfln("Error: %s \n", err)
+		os.Exit(1)
+	}
 }
 
 // packFiles Add files to archive
